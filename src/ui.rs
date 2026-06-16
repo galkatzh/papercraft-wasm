@@ -17,7 +17,7 @@ use image::DynamicImage;
 use crate::util_gl::{
     MLINE3D_CUT, MLINE3D_HIDDEN, MLINE3D_NORMAL, MLINE3D_RIM, MLINE3D_RIM_TAB, MLine3DStatus,
     MSTATUS_HI, MSTATUS_SEL, MSTATUS_UNSEL, MStatus, MVertex2D, MVertex2DColor, MVertex2DLine,
-    MVertex3D, MVertex3DLine, MVertexText,
+    MVertex3D, MVertex3DLine, MVertexText, line_config_to_3dstatus, rgba_from_paper,
 };
 use crate::{FONT_SIZE, TextBuilder};
 use crate::{
@@ -1279,18 +1279,18 @@ impl PapercraftContext {
         build_vertices_for_lines_2d(
             self.gl_objs.paper_vertices_edge_cut.data_mut(),
             &args.vertices_edge_cut,
-            options.cut_line_color.to_rgba(),
+            rgba_from_paper(options.cut_line_color.to_rgba()),
         );
         build_vertices_for_lines_2d(
             self.gl_objs.paper_vertices_edge_crease.data_mut(),
             args.vertices_edge_crease.iter().map(|(v, _)| v),
-            options.fold_line_color.to_rgba(),
+            rgba_from_paper(options.fold_line_color.to_rgba()),
         );
         self.gl_objs.paper_vertices_flap.set(args.vertices_flap);
         build_vertices_for_lines_2d(
             self.gl_objs.paper_vertices_flap_edge.data_mut(),
             &args.vertices_flap_edge,
-            options.tab_line_color.to_rgba(),
+            rgba_from_paper(options.tab_line_color.to_rgba()),
         );
         self.gl_objs
             .paper_vertices_shadow_flap
@@ -1305,7 +1305,7 @@ impl PapercraftContext {
     }
 
     fn pages_rebuild(&mut self) {
-        let color = self.papercraft.options().paper_color.to_rgba();
+        let color = rgba_from_paper(self.papercraft.options().paper_color.to_rgba());
         let mat = MaterialIndex::from(0);
         let mut page_vertices = Vec::new();
         let mut margin_vertices = Vec::new();
@@ -1412,29 +1412,27 @@ impl PapercraftContext {
                 MLINE3D_HIDDEN
             } else if i_fb.is_none() {
                 if matches!(status, EdgeStatus::Cut(FlapSide::Hidden)) {
-                    self.papercraft
-                        .options()
-                        .line3d_rim
-                        .to_3dstatus(&MLINE3D_RIM)
+                    line_config_to_3dstatus(
+                        &self.papercraft.options().line3d_rim,
+                        &MLINE3D_RIM,
+                    )
                 } else {
-                    self.papercraft
-                        .options()
-                        .line3d_rim_tab
-                        .to_3dstatus(&MLINE3D_RIM_TAB)
+                    line_config_to_3dstatus(
+                        &self.papercraft.options().line3d_rim_tab,
+                        &MLINE3D_RIM_TAB,
+                    )
                 }
             } else {
                 match status {
                     EdgeStatus::Hidden | EdgeStatus::SoftHidden => MLINE3D_HIDDEN,
-                    EdgeStatus::Joined => self
-                        .papercraft
-                        .options()
-                        .line3d_normal
-                        .to_3dstatus(&MLINE3D_NORMAL),
-                    EdgeStatus::Cut(_) => self
-                        .papercraft
-                        .options()
-                        .line3d_cut
-                        .to_3dstatus(&MLINE3D_CUT),
+                    EdgeStatus::Joined => line_config_to_3dstatus(
+                        &self.papercraft.options().line3d_normal,
+                        &MLINE3D_NORMAL,
+                    ),
+                    EdgeStatus::Cut(_) => line_config_to_3dstatus(
+                        &self.papercraft.options().line3d_cut,
+                        &MLINE3D_CUT,
+                    ),
                 }
             };
 

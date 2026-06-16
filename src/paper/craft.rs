@@ -3,10 +3,7 @@ use std::ops::ControlFlow;
 use std::{cell::RefCell, rc::Rc};
 
 use crate::util_3d;
-use crate::util_gl::MLine3DStatus;
 use cgmath::{Deg, Rad, prelude::*};
-use easy_imgui_window::easy_imgui::Color;
-use easy_imgui_window::easy_imgui_renderer::easy_imgui_opengl::Rgba;
 use fxhash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use slotmap::{SlotMap, new_key_type};
@@ -218,13 +215,6 @@ pub struct LineConfig {
 }
 
 impl LineConfig {
-    pub fn to_3dstatus(&self, def: &MLine3DStatus) -> MLine3DStatus {
-        MLine3DStatus {
-            thick: self.thick / 2.0,
-            color: self.rgba(),
-            ..*def
-        }
-    }
     pub fn rgba(&self) -> Rgba {
         Rgba::new(self.color.r, self.color.g, self.color.b, self.color.a)
     }

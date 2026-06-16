@@ -1,6 +1,8 @@
+mod color;
 mod craft;
 mod model;
 
+pub use color::*;
 pub use craft::*;
 pub use model::*;
 
