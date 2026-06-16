@@ -61,6 +61,24 @@ and open questions for the owner.
       `model_3d`) — NOT yet; the existing PDF/SVG export is GL-entangled in the shell.
       Next step: build a **new vector-only exporter in the engine** (will add `lopdf`).
 
+- **2026-06-16** — ✅ **Engine compiles to `wasm32-unknown-unknown` (pure Rust).**
+  Early validation of Phase 2's foundation. Fix applied: zip's default features
+  pulled `zstd-sys` (C, via `cc`) plus bzip2/lzma/ppmd/xz/aes and `time`. `.craft`
+  only uses Deflate, so the engine now takes `zip` with
+  `default-features = false, features = ["deflate"]` (pure-Rust zopfli +
+  flate2-zlib-rs). Result: `cargo build -p papercraft-engine --no-default-features
+  --target wasm32-unknown-unknown` ✅ with **no -sys/C crates** in the tree
+  (confirmed via `cargo tree`). The desktop build keeps full zip features through
+  the binary's own `zip` dep (Cargo feature unification), so it is unaffected.
+  Also sidesteps the `time` local-offset wasm panic risk (PLAN §5.2).
+
+### Phase 2 status (started)
+- [x] Engine compiles to `wasm32-unknown-unknown`, single-threaded, pure Rust.
+- [ ] `papercraft-wasm` crate with `#[wasm_bindgen]` API — NOT yet.
+- [ ] Throwaway harness: import STL → unwrap → non-empty `pieces_2d` / `%PDF` bytes.
+  Blocked on the engine public API (import/unwrap exist; `pieces_2d`/`model_3d`/
+  vector `export_*` need to be built — see Phase 1 open item).
+
 ### Follow-ups / minor deviations
 - Engine crate does not inherit the root `[lints.clippy]` table; consider
   `[workspace.lints]` later (polish, deferred to avoid churn now).
