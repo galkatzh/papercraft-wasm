@@ -72,12 +72,25 @@ and open questions for the owner.
   the binary's own `zip` dep (Cargo feature unification), so it is unaffected.
   Also sidesteps the `time` local-offset wasm panic risk (PLAN §5.2).
 
-### Phase 2 status (started)
+### Phase 2 status
 - [x] Engine compiles to `wasm32-unknown-unknown`, single-threaded, pure Rust.
-- [ ] `papercraft-wasm` crate with `#[wasm_bindgen]` API — NOT yet.
-- [ ] Throwaway harness: import STL → unwrap → non-empty `pieces_2d` / `%PDF` bytes.
-  Blocked on the engine public API (import/unwrap exist; `pieces_2d`/`model_3d`/
-  vector `export_*` need to be built — see Phase 1 open item).
+- [x] **Engine web-geometry module** `paper::export` (new, GL-free): `model_3d(pc)`
+      → `{positions, normals, indices, edges}` and `pieces_2d(pc)` → per-island
+      `{triangles, cuts, folds}` with mountain/valley classification. Reuses
+      `traverse_faces`/`face_plane().project()`/`edge_status`; the shell render
+      path (`paper_draw_face`) is untouched. **v1 omits glue flaps + edge-id text
+      labels** (documented follow-up).
+- [x] **Bytes-based import** `formats::import_model_bytes(bytes, format)` (wasm has
+      no filesystem) covering stl/obj/pdo/glb/gltf/craft.
+- [x] **`papercraft-wasm` crate** (`wasm/`) with `#[wasm_bindgen]` `PaperDoc`:
+      `import`, `model3d`, `pieces2d`, `join_edge`, `split_edge` (→ engine
+      `edge_join`/`edge_cut`), `pack_islands`, `num_islands`, `save_craft`.
+      Depends on the engine with default features (no opengl/parallel).
+      **Builds for `wasm32-unknown-unknown`** ✅; native workspace still builds ✅.
+- [ ] `wasm-pack` packaging + a Node/Vitest smoke test (import STL → unwrap →
+      non-empty `pieces2d`). `wasm-pack` not yet installed in this env.
+- [ ] Vector `export_pdf`/`export_svg` in the engine (needs `lopdf`; builds on the
+      `export` module — next).
 
 ### Follow-ups / minor deviations
 - Engine crate does not inherit the root `[lints.clippy]` table; consider

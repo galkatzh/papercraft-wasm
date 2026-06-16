@@ -9,7 +9,7 @@ description = "Papercraft is a tool to unwrap 3D models"
 keywords = ["papercraft", "handcraft"]
 
 [workspace]
-members = ["engine"]
+members = ["engine", "wasm"]
 
 [profile.release]
 strip = "symbols"

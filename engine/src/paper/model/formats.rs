@@ -102,6 +102,43 @@ pub trait Importer {
 }
 
 // Returns (model, is_native_format)
+/// Import a model from an in-memory buffer (for environments without a filesystem,
+/// e.g. wasm). `format` is the lowercase extension without the dot: `stl`, `obj`,
+/// `pdo`, `glb`/`gltf`, or `craft`. Unknown formats are tried as Wavefront OBJ.
+/// Returns a ready (unwrapped) [`Papercraft`].
+///
+/// Note: external resources referenced by relative path (OBJ `.mtl`, separate
+/// glTF `.bin`/textures) cannot be resolved from a buffer; geometry still imports.
+pub fn import_model_bytes(bytes: &[u8], format: &str) -> Result<Papercraft> {
+    let cursor = std::io::Cursor::new(bytes);
+    let fmt = format.trim().trim_start_matches('.').to_ascii_lowercase();
+    let papercraft = match fmt.as_str() {
+        "craft" => Papercraft::load(cursor)
+            .with_context(|| "Error reading Papercraft .craft buffer".to_string())?,
+        "pdo" => {
+            let importer = pepakura::PepakuraImporter::new(cursor)
+                .with_context(|| "Error reading Pepakura buffer".to_string())?;
+            Papercraft::import(importer)
+        }
+        "stl" => {
+            let importer = stl::StlImporter::new(cursor)
+                .with_context(|| "Error reading STL buffer".to_string())?;
+            Papercraft::import(importer)
+        }
+        "glb" | "gltf" => {
+            let importer = gltf::GltfImporter::new(cursor, Path::new("model.gltf"))
+                .with_context(|| "Error reading glTF buffer".to_string())?;
+            Papercraft::import(importer)
+        }
+        _ => {
+            let importer = waveobj::WaveObjImporter::new(cursor, Path::new("model.obj"))
+                .with_context(|| "Error reading Wavefront OBJ buffer".to_string())?;
+            Papercraft::import(importer)
+        }
+    };
+    Ok(papercraft)
+}
+
 pub fn import_model_file(file_name: &Path) -> Result<(Papercraft, bool)> {
     // Models have a lot of indices and unwraps, a corrupted file could easily panic
     match catch_unwind(|| import_model_file_priv(file_name)) {
