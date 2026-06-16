@@ -115,10 +115,32 @@ and open questions for the owner.
 - [x] `export_pdf()` returns `%PDF` bytes (validated: catalog/pages/xref/%%EOF).
       die.craft → correct cube net (rendered); bulbasaur → 7-page net (rendered).
 
-### Phase 3 — web front-end (in progress)
-- Owner preference: **no bundler / no build step** — vanilla JS + locally-vendored
-  CDN libs (Three.js). Use `wasm-pack --target web` (ESM with async `init()`),
-  commit the built `.wasm` so the static site works as-is.
+### Phase 3 — web front-end (MVP working)
+- Owner preference honoured: **no bundler / no build step** — vanilla JS + an
+  import map + locally-vendored Three.js; `wasm-pack --target web` output committed
+  under `web/wasm/` so the static site runs as-is.
+- `web/index.html` + `web/app.js`: toolbar (open / unwrap / repack / split-join
+  mode / export PDF·SVG / save .craft), a Three.js **3D view** (mesh + edge overlay
+  coloured by cut/mountain/valley, orbit, click-to-pick edges) and a Canvas **2D net
+  view** (triangles, cuts, mountain/valley folds, flaps; zoom/pan, click-to-pick).
+  Linked editing: clicking an edge in either view splits/joins and both refresh.
+- `wasm-opt` disabled (binaryen download blocked here) → dev `.wasm` ~1.5 MB;
+  size-optimize at deploy.
+- **Verified in a real browser (Playwright/Chromium):** engine init, `die.craft`
+  loads → 3D die + cube net render (screenshot), `tetra.stl` → fresh `unwrap()` →
+  1 piece, **Export PDF downloads a `%PDF` file**, zero console/page errors.
+
+### Phase 3 acceptance status
+- [x] Loads STL/OBJ/PDO/glTF/.craft; linked 3D + 2D views.
+- [x] Edge split/join + repack; both views update.
+- [x] Exports printable PDF and layered-ish SVG (cut/fold/flap).
+- [x] Deploys as a static site, no special headers (single-threaded).
+
+### Remaining / follow-ups
+- Edge-id text labels (PDF/SVG + 2D) and fold-style in/out extensions.
+- `wasm-opt` size pass for deploy; lazy-load the module.
+- Large/non-manifold mesh guards + graceful engine-error surfacing.
+- Track A (upstream lib-split PR) / Track B (fork CI building the wasm target).
 
 ### Follow-ups / minor deviations
 - Engine crate does not inherit the root `[lints.clippy]` table; consider

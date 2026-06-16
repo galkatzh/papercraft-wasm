@@ -9,6 +9,11 @@ repository = "https://github.com/galkatzh/papercraft-wasm"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# wasm-opt (binaryen) is fetched from GitHub releases at build time; disable it so
+# the build works in restricted networks. Re-enable for size-optimized deploys.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [dependencies]
 # Default features only: no `opengl`, no `parallel`, so this stays wasm-clean.
 papercraft-engine = { path = "../engine" }
