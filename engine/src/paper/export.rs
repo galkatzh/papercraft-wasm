@@ -65,6 +65,32 @@ pub struct Edge3D {
     pub kind: EdgeKind,
 }
 
+/// Cheap mesh-quality summary for the UI (size warnings, hole detection).
+#[derive(Serialize)]
+pub struct ModelStats {
+    pub vertices: u32,
+    pub faces: u32,
+    pub edges: u32,
+    /// Edges with only one adjacent face: boundary/holes (0 for a watertight solid).
+    pub boundary_edges: u32,
+    pub pieces: u32,
+}
+
+pub fn stats(pc: &Papercraft) -> ModelStats {
+    let model = pc.model();
+    let boundary_edges = model
+        .edges()
+        .filter(|(_, e)| e.faces().1.is_none())
+        .count() as u32;
+    ModelStats {
+        vertices: model.num_vertices() as u32,
+        faces: model.num_faces() as u32,
+        edges: model.num_edges() as u32,
+        boundary_edges,
+        pieces: pc.num_islands() as u32,
+    }
+}
+
 /// Build the 3D mesh (positions/normals/indices) plus the classified edge list.
 pub fn model_3d(pc: &Papercraft) -> Model3D {
     let model = pc.model();

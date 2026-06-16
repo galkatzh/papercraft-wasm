@@ -30,15 +30,16 @@ headers are needed (the engine runs single-threaded).
 
 ## Rebuilding the WASM
 
-After changing the Rust engine or bindings:
+After changing the Rust engine or bindings, from the repo root:
 
 ```sh
-wasm-pack build wasm --target web --release --out-dir ../web/wasm
-rm -f ../web/wasm/.gitignore   # keep the artifacts tracked
+./build-wasm.sh
 ```
 
-For size-optimized deploys, also run `wasm-opt` on `papercraft_wasm_bg.wasm`
-(disabled here because the binaryen download is blocked in this environment).
+This runs `wasm-pack build … --target web` and then a `wasm-opt -Os` size pass
+(if `wasm-opt`/binaryen is on `PATH`). wasm-pack's own wasm-opt auto-download is
+disabled in `wasm/Cargo.toml` so the build works where the binaryen download is
+blocked — the script invokes a locally installed `wasm-opt` instead.
 
 ## License
 

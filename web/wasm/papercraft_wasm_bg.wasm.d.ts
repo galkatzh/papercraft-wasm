@@ -12,6 +12,7 @@ export const paperdoc_pack_islands: (a: number) => number;
 export const paperdoc_pieces2d: (a: number, b: number) => void;
 export const paperdoc_save_craft: (a: number, b: number) => void;
 export const paperdoc_split_edge: (a: number, b: number) => number;
+export const paperdoc_stats: (a: number, b: number) => void;
 export const paperdoc_unwrap: (a: number) => number;
 export const start: () => void;
 export const __wbindgen_export: (a: number, b: number) => number;

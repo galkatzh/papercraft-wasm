@@ -147,8 +147,24 @@ and open questions for the owner.
 - [x] **Fold-style in/out extensions** — `push_fold` honours
       Full/FullAndOut/Out/In/InAndOut/None (faithful port of the desktop fold math).
 
-### Remaining / follow-ups
-- `wasm-opt` size pass for deploy; lazy-load the module.
+### Phase 4 — packaging / robustness (done)
+- [x] **Mesh-quality guards & graceful errors.** Engine `export::stats(pc)` →
+      `{vertices, faces, edges, boundary_edges, pieces}`; `import_model_bytes` now
+      wraps the importers in `catch_unwind` and rejects face-less models, so corrupt
+      input yields a clean `Err`, not a module-killing panic. Front-end shows
+      `N faces · M piece(s)`, warns on **open meshes** (`boundary_edges > 0`) and
+      **large meshes** (> 50k faces → "consider decimating"), yields to paint a
+      "Unfolding…" status before the single-threaded unwrap, and on error tells the
+      user to reload. Verified in-browser: watertight (no warning), open triangle
+      (⚠ 3 boundary edges), garbage STL (clean error, no page crash).
+- [x] **`wasm-opt` size pass.** `build-wasm.sh` runs `wasm-pack --target web` then
+      `wasm-opt -Os` (binaryen built from source here since the download is blocked;
+      wasm-pack's own download stays disabled). Committed `.wasm` ~1.4 MB. Module is
+      loaded asynchronously at startup with a "Loading engine…" indicator.
+- [x] **Static deploy ready** — no special headers (single-threaded); `web/` is
+      self-contained (vendored Three.js + committed wasm). See `web/README.md`.
+
+### Remaining / follow-ups (the A/B tracks)
 - Large/non-manifold mesh guards + graceful engine-error surfacing.
 - Track A (upstream lib-split PR) / Track B (fork CI building the wasm target).
 

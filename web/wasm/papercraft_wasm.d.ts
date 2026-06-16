@@ -50,6 +50,10 @@ export class PaperDoc {
      */
     split_edge(edge: number): boolean;
     /**
+     * Mesh-quality summary: `{ vertices, faces, edges, boundary_edges, pieces }`.
+     */
+    stats(): any;
+    /**
      * Produce an initial net by auto-joining edges across the whole model.
      * Use after importing raw geometry (STL/OBJ/glTF); a loaded `.craft` already
      * has its own unfolding. Returns the resulting number of pieces.
@@ -78,6 +82,7 @@ export interface InitOutput {
     readonly paperdoc_pieces2d: (a: number, b: number) => void;
     readonly paperdoc_save_craft: (a: number, b: number) => void;
     readonly paperdoc_split_edge: (a: number, b: number) => number;
+    readonly paperdoc_stats: (a: number, b: number) => void;
     readonly paperdoc_unwrap: (a: number) => number;
     readonly start: () => void;
     readonly __wbindgen_export: (a: number, b: number) => number;

@@ -110,6 +110,24 @@ pub trait Importer {
 /// Note: external resources referenced by relative path (OBJ `.mtl`, separate
 /// glTF `.bin`/textures) cannot be resolved from a buffer; geometry still imports.
 pub fn import_model_bytes(bytes: &[u8], format: &str) -> Result<Papercraft> {
+    // Corrupt/odd meshes can panic deep in indexing; contain it so the caller
+    // gets a clean error instead of taking down the whole module.
+    match catch_unwind(|| import_model_bytes_priv(bytes, format)) {
+        Ok(res) => res,
+        Err(err) => {
+            let msg = err
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| err.downcast_ref::<String>().cloned());
+            match msg {
+                Some(msg) => bail!("Panic importing the model: {msg}"),
+                None => bail!("Panic importing the model"),
+            }
+        }
+    }
+}
+
+fn import_model_bytes_priv(bytes: &[u8], format: &str) -> Result<Papercraft> {
     let cursor = std::io::Cursor::new(bytes);
     let fmt = format.trim().trim_start_matches('.').to_ascii_lowercase();
     let papercraft = match fmt.as_str() {
@@ -136,6 +154,9 @@ pub fn import_model_bytes(bytes: &[u8], format: &str) -> Result<Papercraft> {
             Papercraft::import(importer)
         }
     };
+    if papercraft.model().num_faces() == 0 {
+        bail!("The model has no faces");
+    }
     Ok(papercraft)
 }
 

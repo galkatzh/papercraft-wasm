@@ -171,6 +171,25 @@ export class PaperDoc {
         return ret !== 0;
     }
     /**
+     * Mesh-quality summary: `{ vertices, faces, edges, boundary_edges, pieces }`.
+     * @returns {any}
+     */
+    stats() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.paperdoc_stats(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return takeObject(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * Produce an initial net by auto-joining edges across the whole model.
      * Use after importing raw geometry (STL/OBJ/glTF); a loaded `.craft` already
      * has its own unfolding. Returns the resulting number of pieces.

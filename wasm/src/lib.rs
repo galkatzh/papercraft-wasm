@@ -53,6 +53,11 @@ impl PaperDoc {
         serde_wasm_bindgen::to_value(&export::pieces_2d(&self.pc)).map_err(js_err)
     }
 
+    /// Mesh-quality summary: `{ vertices, faces, edges, boundary_edges, pieces }`.
+    pub fn stats(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(&export::stats(&self.pc)).map_err(js_err)
+    }
+
     /// Produce an initial net by auto-joining edges across the whole model.
     /// Use after importing raw geometry (STL/OBJ/glTF); a loaded `.craft` already
     /// has its own unfolding. Returns the resulting number of pieces.

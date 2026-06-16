@@ -291,13 +291,20 @@ function toggleEdge(id) {
   if (changed) refresh(false);
 }
 
+const LARGE_FACES = 50000;   // beyond this, single-threaded unfolding gets slow
+
 function refresh(refit) {
   if (!doc) return;
   build3d(doc.model3d());
   net = doc.pieces2d();
   if (refit || !fit2d) fitNet();
   draw2d();
-  setStatus(`${modelName} · ${doc.num_islands()} piece(s)`);
+  const s = doc.stats();
+  let msg = `${modelName} · ${s.faces.toLocaleString()} faces · ${s.pieces} piece(s)`;
+  const warns = [];
+  if (s.boundary_edges > 0) warns.push(`open mesh (${s.boundary_edges} boundary edge${s.boundary_edges > 1 ? 's' : ''})`);
+  if (s.faces > LARGE_FACES) warns.push('large mesh — consider decimating before unfolding');
+  setStatus(warns.length ? `${msg}  ⚠ ${warns.join(' · ')}` : msg);
   for (const b of [els.unwrap, els.repack, els.pdf, els.svg, els.craft, els.modeSplit, els.modeJoin])
     b.disabled = false;
 }
@@ -319,10 +326,17 @@ async function loadFile(file) {
   try {
     setStatus(`Importing ${file.name}…`);
     doc = new PaperDoc(bytes, ext);
-    if (ext !== 'craft') doc.unwrap();
+    if (ext !== 'craft') {
+      const s = doc.stats();
+      if (s.faces > LARGE_FACES) setStatus(`Unfolding ${s.faces.toLocaleString()} faces — this may take a moment…`);
+      // Yield so the status paints before the (single-threaded) unwrap.
+      await new Promise((r) => setTimeout(r, 16));
+      doc.unwrap();
+    }
     refresh(true);
   } catch (e) {
-    setStatus(`Error: ${e.message || e}`);
+    doc = null;
+    setStatus(`Could not open ${file.name}: ${e.message || e} — reload the page and try another file.`);
     console.error(e);
   }
 }
