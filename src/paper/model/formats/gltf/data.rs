@@ -5,7 +5,7 @@ use crate::{
 
 use anyhow::{Result, anyhow, bail};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix, SquareMatrix, Zero};
-use easy_imgui_window::easy_imgui_renderer::glow;
+use super::gl_const as glow;
 use image::{DynamicImage, ImageReader};
 use std::{
     borrow::Cow,

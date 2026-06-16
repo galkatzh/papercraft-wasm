@@ -18,10 +18,20 @@ and open questions for the owner.
     imgui boundary. `.craft` on-disk format unchanged (serde still uses r/g/b/a).
     Conversions are plain functions (not `From` impls) to stay orphan-rule-safe
     after the crate split. **`cargo build` green.**
-  - ⏳ Remaining engine coupling: `glow::*` integer constants in
-    `paper/model/formats/gltf/{data,exporter}.rs`, and the `glr::AttribField` impl
-    in `paper/model.rs` (`attrib!`-style). To be handled during the crate split
-    (feature-gate / local consts) where the no-easy-imgui build pins exact types.
+  - ✅ **glTF `glow` constants removed** — defined a local `gl_const` module in
+    `paper/model/formats/gltf.rs` (glTF reuses GL enum values: BYTE=5120 … etc.)
+    and aliased `use super::gl_const as glow` in `data.rs`/`exporter.rs`.
+    **`cargo build` green.**
+  - ⏳ **Last engine→GL coupling:** the `AttribField` impl in the `index_type!`
+    macro (`paper/model.rs`). Only `MaterialIndex` is actually used as a GL vertex
+    attribute (in shell `MVertex3D`/`MVertex2DColor`). **Resolution (at split):**
+    `easy-imgui-opengl` is a standalone, lightweight crate (deps: cgmath/glow/log/
+    smallvec only — no winit). The engine crate will take it as an **optional dep
+    behind a default-off `opengl` feature** and gate the `AttribField` impls on it
+    (`#[cfg(feature = "opengl")]`). Impl lives with the type → no orphan-rule issue;
+    desktop bin enables `papercraft-engine/opengl` (binary stays identical); WASM
+    builds `--no-default-features` → GL-free. Can't do this yet (needs the engine's
+    own Cargo.toml); deferred to the workspace-split step.
 - Note: remote push is currently blocked (git proxy returns 403 — no write permission).
   Work is committed locally only. Owner is aware.
 
