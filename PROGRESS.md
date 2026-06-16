@@ -136,8 +136,18 @@ and open questions for the owner.
 - [x] Exports printable PDF and layered-ish SVG (cut/fold/flap).
 - [x] Deploys as a static site, no special headers (single-threaded).
 
+### Exporter enrichments (done)
+- [x] **Edge-id labels** — `paper::export` now emits `island:id` labels (e.g. `A:7`)
+      per cut edge, positioned/rotated like the desktop `CutDescription`
+      (Inside/Outside, flap-aware). Rendered in `pieces2d.texts`, the SVG (`<text>`),
+      the PDF (Helvetica `BT/ET`, approx-centred) and the 2D net canvas.
+      `PaperDoc` calls `rebuild_island_names()` after import/unwrap/join/split so
+      names are populated. Verified: die.craft labels render in-browser; bulbasaur's
+      30 pieces produce 30 distinct cross-piece target names.
+- [x] **Fold-style in/out extensions** — `push_fold` honours
+      Full/FullAndOut/Out/In/InAndOut/None (faithful port of the desktop fold math).
+
 ### Remaining / follow-ups
-- Edge-id text labels (PDF/SVG + 2D) and fold-style in/out extensions.
 - `wasm-opt` size pass for deploy; lazy-load the module.
 - Large/non-manifold mesh guards + graceful engine-error surfacing.
 - Track A (upstream lib-split PR) / Track B (fork CI building the wasm target).

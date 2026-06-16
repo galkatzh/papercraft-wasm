@@ -36,7 +36,8 @@ impl PaperDoc {
     /// extension without the dot (`stl`, `obj`, `pdo`, `glb`/`gltf`, `craft`).
     #[wasm_bindgen(constructor)]
     pub fn import(bytes: &[u8], format: &str) -> Result<PaperDoc, JsError> {
-        let pc = import_model_bytes(bytes, format).map_err(js_err)?;
+        let mut pc = import_model_bytes(bytes, format).map_err(js_err)?;
+        pc.rebuild_island_names();
         Ok(PaperDoc { pc })
     }
 
@@ -57,22 +58,33 @@ impl PaperDoc {
     /// has its own unfolding. Returns the resulting number of pieces.
     pub fn unwrap(&mut self) -> u32 {
         self.pc.unwrap();
+        self.pc.rebuild_island_names();
         self.pc.num_islands() as u32
     }
 
     /// Join the cut edge `edge` (an `EdgeIndex` from `model3d`/`pieces2d`).
     /// Returns `true` if anything changed.
     pub fn join_edge(&mut self, edge: u32) -> bool {
-        self.pc
+        let changed = self
+            .pc
             .edge_join(EdgeIndex::from(edge as usize), None)
-            .is_some()
+            .is_some();
+        if changed {
+            self.pc.rebuild_island_names();
+        }
+        changed
     }
 
     /// Split (cut) the joined edge `edge`. Returns `true` if anything changed.
     pub fn split_edge(&mut self, edge: u32) -> bool {
-        self.pc
+        let changed = self
+            .pc
             .edge_cut(EdgeIndex::from(edge as usize), None)
-            .is_some()
+            .is_some();
+        if changed {
+            self.pc.rebuild_island_names();
+        }
+        changed
     }
 
     /// Re-pack the islands onto the page(s). Returns the number of pages used.

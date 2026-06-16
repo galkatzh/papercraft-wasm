@@ -5,18 +5,18 @@
 //! `edge_status`, `flat_face_flap_dimensions`) to emit plain data the browser can
 //! render with Three.js / SVG, and to produce printable vector PDF/SVG.
 //!
-//! v1 scope: 3D model, the 2D net per island (face triangles, cut outlines,
-//! mountain/valley folds and glue flaps) and multi-page vector PDF/SVG.
-//! Edge-id text labels are not emitted yet (follow-up); folds are drawn as plain
-//! mountain(solid)/valley(dashed) lines without the fold-style in/out extensions.
+//! Covers: 3D model; the 2D net per island (face triangles, cut outlines,
+//! mountain/valley folds with fold-style in/out extensions, glue flaps and
+//! edge-id labels); and multi-page vector PDF / page-grid SVG.
 
+use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Write as _;
 use std::ops::ControlFlow;
 
 use cgmath::{EuclideanSpace, InnerSpace, Point2, Transform};
 use serde::Serialize;
 
-use super::{EdgeStatus, FlapStyle, Papercraft, VertexIndex};
+use super::{EdgeIdPosition, EdgeStatus, FlapStyle, FoldStyle, Papercraft, VertexIndex};
 use crate::util_3d::Vector2;
 
 /// How an edge should be drawn.
@@ -116,6 +116,8 @@ pub struct IslandGeom {
     pub folds: Vec<Line2D>,
     /// Each flap is an open polyline (its base is the shared fold edge).
     pub flaps: Vec<Vec<[f32; 2]>>,
+    /// Edge-id labels (`island:id`).
+    pub texts: Vec<Text2D>,
 }
 
 #[derive(Serialize, Clone, Copy)]
@@ -126,15 +128,109 @@ pub struct Line2D {
     pub kind: EdgeKind,
 }
 
-/// Compute the placed 2D geometry of one island: face triangles, cut outline,
-/// fold lines and glue flaps. Coordinates are in paper millimetres on the
-/// infinite canvas (i.e. already include the island's location and rotation).
+#[derive(Serialize, Clone)]
+pub struct Text2D {
+    pub pos: [f32; 2],
+    /// Baseline rotation in radians (kept within ±90° for readability).
+    pub angle: f32,
+    /// Font height in millimetres.
+    pub size: f32,
+    pub text: String,
+}
+
+/// Push the fold-line segment(s) for an edge, honouring the fold style (the
+/// optional little in/out extension marks). Mirrors the desktop's logic.
+fn push_fold(
+    folds: &mut Vec<Line2D>,
+    edge: u32,
+    p0: Vector2,
+    p1: Vector2,
+    kind: EdgeKind,
+    style: FoldStyle,
+    fold_line_len: f32,
+) {
+    let edge_vec = p1 - p0;
+    let v_len = edge_vec.magnitude();
+    if v_len < 1e-9 {
+        return;
+    }
+    let vn = edge_vec * (fold_line_len / v_len);
+    let mut seg = |a: Vector2, b: Vector2| {
+        folds.push(Line2D {
+            edge,
+            p0: [a.x, a.y],
+            p1: [b.x, b.y],
+            kind,
+        });
+    };
+    match style {
+        FoldStyle::None => {}
+        FoldStyle::Full => seg(p0, p1),
+        FoldStyle::FullAndOut => seg(p0 - vn, p1 + vn),
+        FoldStyle::Out => {
+            seg(p0 - vn, p0);
+            seg(p1, p1 + vn);
+        }
+        FoldStyle::In => {
+            seg(p0, p0 + vn);
+            seg(p1 - vn, p1);
+        }
+        FoldStyle::InAndOut => {
+            seg(p0 - vn, p0 + vn);
+            seg(p1 - vn, p1 + vn);
+        }
+    }
+}
+
+/// Position an edge-id label next to a cut edge (mirrors `CutDescription`).
+fn edge_id_label(
+    p0: Vector2,
+    p1: Vector2,
+    n_flap: Option<Vector2>,
+    pos_mode: EdgeIdPosition,
+    size_mm: f32,
+    text: String,
+) -> Option<Text2D> {
+    let mut center = (p0 + p1) * 0.5;
+    let voffs = match (pos_mode, n_flap) {
+        (EdgeIdPosition::Inside, None) => -0.2,
+        (EdgeIdPosition::Inside, Some(_)) => 1.0,
+        (EdgeIdPosition::Outside, None) => 1.0,
+        (EdgeIdPosition::Outside, Some(n)) => {
+            center += n;
+            1.0
+        }
+        (EdgeIdPosition::None, _) => return None,
+    };
+    let dir = (p1 - p0).normalize();
+    let normal = Vector2::new(-dir.y, dir.x);
+    let pos = center + size_mm * voffs * normal;
+    // Keep text upright (within ±90°).
+    let mut angle = dir.y.atan2(dir.x);
+    if angle > FRAC_PI_2 {
+        angle -= PI;
+    } else if angle < -FRAC_PI_2 {
+        angle += PI;
+    }
+    Some(Text2D {
+        pos: [pos.x, pos.y],
+        angle,
+        size: size_mm,
+        text,
+    })
+}
+
+/// Compute the placed 2D geometry of one island.
 fn island_geom(pc: &Papercraft, island: &super::Island) -> IslandGeom {
     let model = pc.model();
     let options = pc.options();
     let scale = options.scale;
     let flap_style = options.flap_style;
     let flap_double = options.flap_double;
+    let fold_style = options.fold_style;
+    let fold_line_len = options.fold_line_len;
+    let id_pos = options.edge_id_position;
+    let id_size = options.edge_id_font_size * 25.4 / 72.0; // pt -> mm
 
     let mut g = IslandGeom::default();
 
@@ -157,7 +253,6 @@ fn island_geom(pc: &Papercraft, island: &super::Island) -> IslandGeom {
             let pos0 = project(i_v0);
             let pos1 = project(i_v1);
 
-            // The other face across this edge (None for a rim edge).
             let other_face = match edge.faces() {
                 (fa, Some(fb)) if i_face == fb => Some(fa),
                 (fa, Some(fb)) if i_face == fa => Some(fb),
@@ -165,40 +260,57 @@ fn island_geom(pc: &Papercraft, island: &super::Island) -> IslandGeom {
                 _ => continue,
             };
 
+            // Edge-id label text (shared helper closure).
+            let label = |g: &mut IslandGeom, n_flap: Option<Vector2>| {
+                if id_pos == EdgeIdPosition::None {
+                    return;
+                }
+                let (Some(i_face_b), Some(id)) = (other_face, pc.edge_id(i_edge)) else {
+                    return;
+                };
+                let name = pc
+                    .island_by_key(pc.island_by_face(i_face_b))
+                    .map_or("?", |i| i.name());
+                if let Some(t) =
+                    edge_id_label(pos0, pos1, n_flap, id_pos, id_size, format!("{name}:{id}"))
+                {
+                    g.texts.push(t);
+                }
+            };
+
             match status {
                 EdgeStatus::Hidden | EdgeStatus::SoftHidden => {}
                 EdgeStatus::Joined => {
-                    // Shared by two faces of this island: emit once.
                     if !edge.face_sign(i_face) {
                         continue;
                     }
-                    g.folds.push(Line2D {
-                        edge: edge_u32,
-                        p0: arr(pos0),
-                        p1: arr(pos1),
-                        kind: fold_kind(edge.angle().0.is_sign_negative()),
-                    });
+                    push_fold(
+                        &mut g.folds,
+                        edge_u32,
+                        pos0,
+                        pos1,
+                        fold_kind(edge.angle().0.is_sign_negative()),
+                        fold_style,
+                        fold_line_len,
+                    );
                 }
                 EdgeStatus::Cut(c) => {
                     let flap_here = match flap_style {
                         FlapStyle::None => false,
-                        _ => {
-                            if flap_double && other_face.is_some() {
-                                true
-                            } else {
-                                c.flap_visible(edge.face_sign(i_face))
-                            }
-                        }
+                        _ => flap_double && other_face.is_some() || c.flap_visible(edge.face_sign(i_face)),
                     };
 
                     if flap_here {
                         // The flap folds along this edge; the tab outline is the cut.
-                        g.folds.push(Line2D {
-                            edge: edge_u32,
-                            p0: arr(pos0),
-                            p1: arr(pos1),
-                            kind: fold_kind(edge.angle().0.is_sign_negative()),
-                        });
+                        push_fold(
+                            &mut g.folds,
+                            edge_u32,
+                            pos0,
+                            pos1,
+                            fold_kind(edge.angle().0.is_sign_negative()),
+                            fold_style,
+                            fold_line_len,
+                        );
 
                         let fg = pc.flat_face_flap_dimensions(i_face, other_face, i_edge);
                         let edge_vec = pos1 - pos0;
@@ -219,6 +331,7 @@ fn island_geom(pc: &Papercraft, island: &super::Island) -> IslandGeom {
                                 ]
                             };
                             g.flaps.push(flap);
+                            label(&mut g, Some(normal));
                         }
                     } else {
                         g.cuts.push(Line2D {
@@ -227,6 +340,7 @@ fn island_geom(pc: &Papercraft, island: &super::Island) -> IslandGeom {
                             p1: arr(pos1),
                             kind: EdgeKind::Cut,
                         });
+                        label(&mut g, None);
                     }
                 }
             }
@@ -249,6 +363,7 @@ pub struct Piece2D {
     pub cuts: Vec<Line2D>,
     pub folds: Vec<Line2D>,
     pub flaps: Vec<Vec<[f32; 2]>>,
+    pub texts: Vec<Text2D>,
 }
 
 /// The full 2D net: every island placed on the infinite paper.
@@ -264,6 +379,7 @@ pub fn pieces_2d(pc: &Papercraft) -> Pieces2D {
                 cuts: g.cuts,
                 folds: g.folds,
                 flaps: g.flaps,
+                texts: g.texts,
             }
         })
         .collect();
@@ -295,7 +411,6 @@ fn placed_islands(pc: &Papercraft) -> Vec<Placed> {
             let page = (po.row.max(0) as u32) * page_cols + (po.col.max(0) as u32);
             let origin = options.page_position(page);
             let mut geom = island_geom(pc, island);
-            // Shift into page-local coordinates.
             let shift = |p: &mut [f32; 2]| {
                 p[0] -= origin.x;
                 p[1] -= origin.y;
@@ -314,9 +429,16 @@ fn placed_islands(pc: &Papercraft) -> Vec<Placed> {
             for f in &mut geom.flaps {
                 f.iter_mut().for_each(shift);
             }
+            for t in &mut geom.texts {
+                shift(&mut t.pos);
+            }
             Placed { page, geom }
         })
         .collect()
+}
+
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 /// Render the whole document to a single SVG laying every page out in the page
@@ -329,9 +451,9 @@ pub fn export_svg(pc: &Papercraft) -> Vec<u8> {
     let page_rows = n_pages.div_ceil(page_cols);
 
     let placed = placed_islands(pc);
-    let (cut_r, cut_g, cut_b) = color_rgb(&options.cut_line_color);
-    let (fold_r, fold_g, fold_b) = color_rgb(&options.fold_line_color);
-    let (tab_r, tab_g, tab_b) = color_rgb(&options.tab_line_color);
+    let cut = color_rgb(&options.cut_line_color);
+    let fold = color_rgb(&options.fold_line_color);
+    let tab = color_rgb(&options.tab_line_color);
     let cut_w = options.cut_line_width;
     let fold_w = options.fold_line_width;
     let tab_w = options.tab_line_width;
@@ -347,26 +469,24 @@ pub fn export_svg(pc: &Papercraft) -> Vec<u8> {
 "#
     );
 
-    // Page outlines.
     for page in 0..n_pages {
         let o = options.page_position(page);
-        let _ = write!(
+        let _ = writeln!(
             s,
-            r##"<rect x="{}" y="{}" width="{pw}" height="{ph}" fill="white" stroke="#cccccc" stroke-width="0.2"/>
-"##,
+            r##"<rect x="{}" y="{}" width="{pw}" height="{ph}" fill="white" stroke="#cccccc" stroke-width="0.2"/>"##,
             o.x, o.y
         );
     }
 
-    let line = |s: &mut String, a: [f32; 2], b: [f32; 2], o: Vector2, rgb: (f32, f32, f32), w: f32, dash: bool| {
-        let (r, gc, bl) = rgb;
+    let rgb = |c: (f32, f32, f32)| {
+        format!("rgb({},{},{})", (c.0 * 255.0) as u8, (c.1 * 255.0) as u8, (c.2 * 255.0) as u8)
+    };
+    let line = |s: &mut String, a: [f32; 2], b: [f32; 2], o: Vector2, col: String, w: f32, dash: bool| {
         let d = if dash { r#" stroke-dasharray="2,2""# } else { "" };
-        let _ = write!(
+        let _ = writeln!(
             s,
-            r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="rgb({},{},{})" stroke-width="{w}"{d}/>
-"#,
+            r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{col}" stroke-width="{w}"{d}/>"#,
             a[0] + o.x, a[1] + o.y, b[0] + o.x, b[1] + o.y,
-            (r * 255.0) as u8, (gc * 255.0) as u8, (bl * 255.0) as u8,
         );
     };
 
@@ -374,14 +494,23 @@ pub fn export_svg(pc: &Papercraft) -> Vec<u8> {
         let o = options.page_position(placed.page);
         for f in &placed.geom.flaps {
             for w in f.windows(2) {
-                line(&mut s, w[0], w[1], o, (tab_r, tab_g, tab_b), tab_w, false);
+                line(&mut s, w[0], w[1], o, rgb(tab), tab_w, false);
             }
         }
         for l in &placed.geom.folds {
-            line(&mut s, l.p0, l.p1, o, (fold_r, fold_g, fold_b), fold_w, l.kind == EdgeKind::Valley);
+            line(&mut s, l.p0, l.p1, o, rgb(fold), fold_w, l.kind == EdgeKind::Valley);
         }
         for l in &placed.geom.cuts {
-            line(&mut s, l.p0, l.p1, o, (cut_r, cut_g, cut_b), cut_w, false);
+            line(&mut s, l.p0, l.p1, o, rgb(cut), cut_w, false);
+        }
+        for t in &placed.geom.texts {
+            let (x, y) = (t.pos[0] + o.x, t.pos[1] + o.y);
+            let deg = t.angle.to_degrees();
+            let _ = writeln!(
+                s,
+                r#"<text x="{x}" y="{y}" font-family="Helvetica, sans-serif" font-size="{}" text-anchor="middle" dominant-baseline="central" transform="rotate({deg} {x} {y})">{}</text>"#,
+                t.size, xml_escape(&t.text),
+            );
         }
     }
 
@@ -408,28 +537,33 @@ pub fn export_pdf(pc: &Papercraft) -> Vec<u8> {
 
     let placed = placed_islands(pc);
 
-    // Map mm (page-local, y down from top) to PDF points (y up from bottom).
     let px = |x: f32| x * MM_TO_PT;
     let py = |y: f32| ph_pt - y * MM_TO_PT;
 
     let mut doc = Document::with_version("1.4");
     let pages_id = doc.new_object_id();
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+        "Encoding" => "WinAnsiEncoding",
+    });
     let mut kids: Vec<Object> = Vec::new();
 
     for page in 0..n_pages {
         let mut c = String::new();
-        let _ = write!(c, "{cut_w} w 1 J 1 j\n");
+        let _ = writeln!(c, "1 J 1 j");
 
         let stroke = |c: &mut String, rgb: (f32, f32, f32), w: f32, dash: bool| {
-            let _ = write!(c, "{} {} {} RG {w} w\n", rgb.0, rgb.1, rgb.2);
+            let _ = writeln!(c, "{} {} {} RG {w} w", rgb.0, rgb.1, rgb.2);
             if dash {
-                let _ = write!(c, "[{} {}] 0 d\n", 2.0 * MM_TO_PT, 2.0 * MM_TO_PT);
+                let _ = writeln!(c, "[{} {}] 0 d", 2.0 * MM_TO_PT, 2.0 * MM_TO_PT);
             } else {
                 c.push_str("[] 0 d\n");
             }
         };
         let seg = |c: &mut String, a: [f32; 2], b: [f32; 2]| {
-            let _ = write!(c, "{} {} m {} {} l S\n", px(a[0]), py(a[1]), px(b[0]), py(b[1]));
+            let _ = writeln!(c, "{} {} m {} {} l S", px(a[0]), py(a[1]), px(b[0]), py(b[1]));
         };
         let poly = |c: &mut String, pts: &[[f32; 2]]| {
             if let Some((first, rest)) = pts.split_first() {
@@ -441,7 +575,9 @@ pub fn export_pdf(pc: &Papercraft) -> Vec<u8> {
             }
         };
 
-        for placed in placed.iter().filter(|p| p.page == page) {
+        let page_islands: Vec<&Placed> = placed.iter().filter(|p| p.page == page).collect();
+
+        for placed in &page_islands {
             stroke(&mut c, tab, tab_w, false);
             for f in &placed.geom.flaps {
                 poly(&mut c, f);
@@ -456,13 +592,39 @@ pub fn export_pdf(pc: &Papercraft) -> Vec<u8> {
             }
         }
 
+        // Edge-id labels (black text).
+        let mut has_text = false;
+        for placed in &page_islands {
+            for t in &placed.geom.texts {
+                if !has_text {
+                    c.push_str("0 0 0 rg\n");
+                    has_text = true;
+                }
+                let size_pt = t.size * MM_TO_PT;
+                // PDF y is up, so the paper rotation is negated.
+                let (sn, cs) = (-t.angle).sin_cos();
+                // Approximate centering: shift left by half the text width.
+                let half_w = 0.5 * t.text.chars().count() as f32 * size_pt * 0.5;
+                let ox = px(t.pos[0]) - half_w * cs;
+                let oy = py(t.pos[1]) - half_w * sn;
+                let _ = writeln!(
+                    c,
+                    "BT /F1 {size_pt} Tf {cs} {sn} {} {cs} {ox} {oy} Tm ({}) Tj ET",
+                    -sn,
+                    pdf_escape(&t.text),
+                );
+            }
+        }
+
         let content_id = doc.add_object(Stream::new(dictionary! {}, c.into_bytes()));
         let page_id = doc.add_object(dictionary! {
             "Type" => "Page",
             "Parent" => pages_id,
             "Contents" => content_id,
             "MediaBox" => vec![0.0.into(), 0.0.into(), pw_pt.into(), ph_pt.into()],
-            "Resources" => dictionary! {},
+            "Resources" => dictionary! {
+                "Font" => dictionary! { "F1" => font_id },
+            },
         });
         kids.push(page_id.into());
     }
@@ -485,4 +647,8 @@ pub fn export_pdf(pc: &Papercraft) -> Vec<u8> {
     let mut buf = Vec::new();
     let _ = doc.save_to(&mut buf);
     buf
+}
+
+fn pdf_escape(s: &str) -> String {
+    s.replace('\\', r"\\").replace('(', r"\(").replace(')', r"\)")
 }

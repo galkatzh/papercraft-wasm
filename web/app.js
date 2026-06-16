@@ -208,6 +208,19 @@ function draw2d() {
   // cuts
   ctx.setLineDash([]); ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(240,240,245,0.95)';
   for (const pc of net.pieces) for (const l of pc.cuts) line(l.p0, l.p1);
+  // edge-id labels
+  ctx.fillStyle = 'rgba(235,190,110,0.95)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const pc of net.pieces) for (const t of pc.texts) {
+    const px = t.size * view2d.scale;          // font height in screen px
+    if (px < 5) continue;                       // hide when too small to read
+    const [x, y] = W2S(t.pos);
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(t.angle);
+    ctx.font = `${px}px Helvetica, sans-serif`;
+    ctx.fillText(t.text, 0, 0);
+    ctx.restore();
+  }
 }
 function strokeTriFill(t) {
   ctx.beginPath();
