@@ -35,17 +35,18 @@ static MULTISAMPLES: &[i32] = &[16, 8, 4, 2];
 use easy_imgui_filechooser::{self as filechooser, CustomAtlas};
 
 mod config;
-mod paper;
-mod pdf_metrics;
 mod printable;
 mod semaphore;
-mod util_3d;
 mod util_gl;
+
+// The unwrapping engine now lives in the `papercraft-engine` crate. Re-export its
+// modules under their historical crate paths so the rest of the shell keeps using
+// `crate::paper`, `crate::util_3d`, `crate::pdf_metrics` and `crate::version`.
+pub use papercraft_engine::{paper, pdf_metrics, util_3d, version};
 
 mod ui;
 use ui::*;
 
-mod version;
 use version::Version;
 
 static LOGO_IMG: LazyLock<image::RgbaImage> =

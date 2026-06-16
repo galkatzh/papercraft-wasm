@@ -8,6 +8,9 @@ repository = "https://github.com/rodrigorc/papercraft"
 description = "Papercraft is a tool to unwrap 3D models"
 keywords = ["papercraft", "handcraft"]
 
+[workspace]
+members = ["engine"]
+
 [profile.release]
 strip = "symbols"
 lto = true
@@ -42,6 +45,7 @@ include-po = "0.2.1"
 anyhow = "1"
 
 [dependencies]
+papercraft-engine = { path = "engine", features = ["opengl", "parallel"] }
 cgmath = { version = "0.18", features = ["mint"] }
 anyhow = "1"
 base64 = "0.22"

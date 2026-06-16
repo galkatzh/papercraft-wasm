@@ -32,6 +32,40 @@ and open questions for the owner.
     desktop bin enables `papercraft-engine/opengl` (binary stays identical); WASM
     builds `--no-default-features` → GL-free. Can't do this yet (needs the engine's
     own Cargo.toml); deferred to the workspace-split step.
+- **2026-06-16** — ✅ **Workspace split done (Phase 1 core complete).**
+  - New crate `engine/` = `papercraft-engine` (lib). Moved into it: `paper/` (incl.
+    `color.rs`), `util_3d.rs`, `pdf_metrics.rs`, `version.rs`, and `thirdparty/afm/`.
+    Added `engine/build.rs` (helvetica AFM generation) and `engine/src/lib.rs`
+    (`pub mod paper/pdf_metrics/util_3d/version`).
+  - Engine features: `parallel` (Rayon, default-off — `compute_edge_map` now has a
+    sequential fallback) and `opengl` (optional `easy-imgui-opengl`, gates the
+    `AttribField` impls on the index types). Both default-off.
+  - Root crate stays the `papercraft` **binary** (build.rs/locales/res/distro/CI
+    untouched) and is now also the **workspace root** (`members = ["engine"]`).
+    Depends on `papercraft-engine` with `features = ["opengl", "parallel"]` so the
+    desktop build is behaviorally identical. `main.rs` re-exports the engine modules
+    under their old paths (`pub use papercraft_engine::{paper, pdf_metrics, util_3d,
+    version}`) so the rest of the shell needed no path churn.
+  - Removed the helvetica step from the shell `build.rs` (now in the engine).
+  - **Verification:** `cargo build` (workspace) ✅ · `cargo build -p papercraft-engine
+    --no-default-features` ✅ pulling **no** easy-imgui/winit/glow/clap/reqwest/
+    directories (confirmed via `cargo tree`) · `cargo test -p papercraft-engine` ✅
+    8/8 · `cargo clippy --workspace` clean except one pre-existing warning in
+    `printable.rs:91` (shell, untouched — left as-is to keep the binary identical).
+
+### Phase 1 acceptance status
+- [x] Engine builds with `--no-default-features`, no UI/CLI/OS deps.
+- [x] Desktop binary still builds (default features); behavior unchanged (pure code
+      move + re-export + feature gates; `.craft` format untouched).
+- [ ] Minimal public export API (`export_pdf`/`export_svg` vector, `pieces_2d`,
+      `model_3d`) — NOT yet; the existing PDF/SVG export is GL-entangled in the shell.
+      Next step: build a **new vector-only exporter in the engine** (will add `lopdf`).
+
+### Follow-ups / minor deviations
+- Engine crate does not inherit the root `[lints.clippy]` table; consider
+  `[workspace.lints]` later (polish, deferred to avoid churn now).
+- `thirdparty/afm/` moved under `engine/` (only `build.rs` referenced it).
+
 - Note: remote push is currently blocked (git proxy returns 403 — no write permission).
   Work is committed locally only. Owner is aware.
 
