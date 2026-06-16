@@ -38,5 +38,10 @@ log = "0.4"
 flate2 = "1"
 fxhash = "0.2"
 maybe-owned = { version = "0.3", features = ["serde"] }
+# For vector PDF export. default features pull chrono/jiff/rayon/time (date stamps
+# + threads); we don't need them. `wasm_js` selects getrandom's wasm backend so the
+# crate builds for wasm32-unknown-unknown. The desktop build unifies with the
+# binary's own full-featured lopdf dependency.
+lopdf = { version = "0.41", default-features = false, features = ["wasm_js"] }
 rayon = { version = "1", optional = true }
 easy-imgui-opengl = { version = "0.2", optional = true }

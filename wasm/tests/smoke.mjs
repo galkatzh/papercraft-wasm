@@ -43,13 +43,24 @@ console.log(
   `pieces2d         : pieces=${net.pieces.length} triangles=${sum(net.pieces, 'triangles')} cuts=${sum(net.pieces, 'cuts')} folds=${sum(net.pieces, 'folds')}`,
 );
 
+console.log(
+  `flaps            : ${sum(net.pieces, 'flaps')} (over ${net.pieces.length} pieces)`,
+);
 console.log('pages            :', doc.pack_islands());
+
+const pdf = doc.export_pdf();
+const pdfOk = String.fromCharCode(...pdf.slice(0, 5)) === '%PDF-';
+console.log(`export_pdf       : ${pdf.length} bytes, %PDF=${pdfOk}`);
+
+const svg = doc.export_svg();
+const svgOk = String.fromCharCode(...svg.slice(0, 5)) === '<?xml';
+console.log(`export_svg       : ${svg.length} bytes, xml=${svgOk}`);
 
 const craft = doc.save_craft();
 const isZip = craft[0] === 0x50 && craft[1] === 0x4b; // "PK"
 console.log(`save_craft       : ${craft.length} bytes, zip=${isZip}`);
 
-if (net.pieces.length === 0 || craft.length === 0 || !isZip) {
+if (net.pieces.length === 0 || !pdfOk || !svgOk || !isZip) {
   console.error('SMOKE TEST FAILED');
   process.exit(1);
 }

@@ -85,6 +85,16 @@ impl PaperDoc {
         self.pc.num_islands() as u32
     }
 
+    /// Render the net to a multi-page vector PDF (cut/fold lines + glue flaps).
+    pub fn export_pdf(&self) -> Vec<u8> {
+        export::export_pdf(&self.pc)
+    }
+
+    /// Render the net to a single SVG laying every page out in the page grid.
+    pub fn export_svg(&self) -> Vec<u8> {
+        export::export_svg(&self.pc)
+    }
+
     /// Serialize the document to the `.craft` project format.
     pub fn save_craft(&self) -> Result<Vec<u8>, JsError> {
         let mut buf = std::io::Cursor::new(Vec::new());

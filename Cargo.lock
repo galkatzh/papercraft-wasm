@@ -2850,6 +2850,7 @@ dependencies = [
  "fxhash",
  "image",
  "log",
+ "lopdf",
  "maybe-owned",
  "rayon",
  "serde",

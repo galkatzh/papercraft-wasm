@@ -99,13 +99,26 @@ and open questions for the owner.
         (correct tetrahedron net).
       - `bulbasaur.craft`: 30 islands; `split_edge` 30→31, `join_edge` 31→30,
         `pack_islands` → 7 pages.
-- [ ] Vector `export_pdf`/`export_svg` in the engine (needs `lopdf`; builds on the
-      `export` module — next), then wire into `PaperDoc`.
+- [x] **Vector exporter in the engine** (`paper::export`): `export_pdf` (multi-page,
+      `lopdf`) and `export_svg` (single SVG over the page grid). Includes **glue
+      flaps** (via `flat_face_flap_dimensions` + the desktop `draw_flap` side logic),
+      cut outlines and mountain(solid)/valley(dashed) folds, page layout via
+      `global_to_page`/`page_position`. `pieces2d` now also carries flaps. Wired
+      into `PaperDoc` as `export_pdf()`/`export_svg()`.
+      - `lopdf` added to the engine with `default-features=false, features=["wasm_js"]`
+        (drops chrono/jiff/rayon/time; getrandom wasm backend) → still wasm-clean.
+      - Edge-id text labels and fold-style in/out extensions deferred (follow-up).
 
-### Phase 2 acceptance status
+### Phase 2 acceptance status — COMPLETE
 - [x] `papercraft-wasm` builds via `wasm-pack` for `wasm32`, single-threaded, pure Rust.
-- [x] Harness: import STL → `unwrap()` → non-empty `pieces2d()` ✅.
-- [ ] `export_pdf()` returns `%PDF` bytes — pending the engine vector exporter.
+- [x] Harness: import STL → `unwrap()` → non-empty `pieces2d()`.
+- [x] `export_pdf()` returns `%PDF` bytes (validated: catalog/pages/xref/%%EOF).
+      die.craft → correct cube net (rendered); bulbasaur → 7-page net (rendered).
+
+### Phase 3 — web front-end (in progress)
+- Owner preference: **no bundler / no build step** — vanilla JS + locally-vendored
+  CDN libs (Three.js). Use `wasm-pack --target web` (ESM with async `init()`),
+  commit the built `.wasm` so the static site works as-is.
 
 ### Follow-ups / minor deviations
 - Engine crate does not inherit the root `[lints.clippy]` table; consider
