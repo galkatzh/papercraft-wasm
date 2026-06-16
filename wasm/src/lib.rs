@@ -52,6 +52,14 @@ impl PaperDoc {
         serde_wasm_bindgen::to_value(&export::pieces_2d(&self.pc)).map_err(js_err)
     }
 
+    /// Produce an initial net by auto-joining edges across the whole model.
+    /// Use after importing raw geometry (STL/OBJ/glTF); a loaded `.craft` already
+    /// has its own unfolding. Returns the resulting number of pieces.
+    pub fn unwrap(&mut self) -> u32 {
+        self.pc.unwrap();
+        self.pc.num_islands() as u32
+    }
+
     /// Join the cut edge `edge` (an `EdgeIndex` from `model3d`/`pieces2d`).
     /// Returns `true` if anything changed.
     pub fn join_edge(&mut self, edge: u32) -> bool {

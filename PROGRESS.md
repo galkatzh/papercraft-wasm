@@ -87,10 +87,25 @@ and open questions for the owner.
       `edge_join`/`edge_cut`), `pack_islands`, `num_islands`, `save_craft`.
       Depends on the engine with default features (no opengl/parallel).
       **Builds for `wasm32-unknown-unknown`** ✅; native workspace still builds ✅.
-- [ ] `wasm-pack` packaging + a Node/Vitest smoke test (import STL → unwrap →
-      non-empty `pieces2d`). `wasm-pack` not yet installed in this env.
+- [x] **`unwrap()`** — engine `Papercraft::unwrap` greedily auto-joins edges across
+      all islands (overlap-aware, terminates monotonically) to make an initial net
+      from raw geometry; exposed on `PaperDoc`. (`.craft` already carries its net.)
+- [x] **`wasm-pack` packaging** — `wasm-pack build wasm --target bundler --out-dir
+      ../web/src/wasm` ✅ (output gitignored; ~5 MB dev `.wasm`). Clean TS `.d.ts`.
+- [x] **Node smoke test** (`wasm/tests/smoke.mjs`), verified end-to-end:
+      - `die.craft`: 1 island, 12 tris, **14 cuts / 5 folds** (correct cube net),
+        `save_craft` → valid zip.
+      - tetra `.stl`: import 4 islands → `unwrap()` → **1 island, 3 folds, 6 cuts**
+        (correct tetrahedron net).
+      - `bulbasaur.craft`: 30 islands; `split_edge` 30→31, `join_edge` 31→30,
+        `pack_islands` → 7 pages.
 - [ ] Vector `export_pdf`/`export_svg` in the engine (needs `lopdf`; builds on the
-      `export` module — next).
+      `export` module — next), then wire into `PaperDoc`.
+
+### Phase 2 acceptance status
+- [x] `papercraft-wasm` builds via `wasm-pack` for `wasm32`, single-threaded, pure Rust.
+- [x] Harness: import STL → `unwrap()` → non-empty `pieces2d()` ✅.
+- [ ] `export_pdf()` returns `%PDF` bytes — pending the engine vector exporter.
 
 ### Follow-ups / minor deviations
 - Engine crate does not inherit the root `[lints.clippy]` table; consider

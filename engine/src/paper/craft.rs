@@ -1395,6 +1395,30 @@ impl Papercraft {
         join_res
     }
 
+    /// Produce an initial net from a freshly imported (mostly-cut) model by
+    /// greedily auto-joining edges across all islands until no further overlap-free
+    /// join is possible. Each successful join merges two islands, so the island
+    /// count decreases monotonically and the loop terminates.
+    ///
+    /// Intended for raw geometry imports (STL/OBJ/glTF). A loaded `.craft` already
+    /// carries its own unfolding, so calling this on one would keep joining and
+    /// collapse the saved layout.
+    pub fn unwrap(&mut self) {
+        loop {
+            let before = self.num_islands();
+            let keys: Vec<IslandKey> = self.islands().map(|(k, _)| k).collect();
+            for k in keys {
+                // The island may have been merged away earlier in this pass.
+                if self.island_by_key(k).is_some() {
+                    self.auto_join_edges(k);
+                }
+            }
+            if self.num_islands() == before {
+                break;
+            }
+        }
+    }
+
     pub fn auto_join_edges(&mut self, mut i_island: IslandKey) -> Vec<JoinResult> {
         let mut res = Vec::new();
 
