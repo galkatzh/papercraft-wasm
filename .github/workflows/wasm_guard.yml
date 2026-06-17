@@ -7,11 +7,12 @@ name: WasmGuard
 
 on:
   push:
+    branches: [main, master]
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: wasm-guard-${{ github.ref }}
+  group: wasm-guard-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
