@@ -165,8 +165,16 @@ and open questions for the owner.
       self-contained (vendored Three.js + committed wasm). See `web/README.md`.
 
 ### Remaining / follow-ups (the A/B tracks)
-- Large/non-manifold mesh guards + graceful engine-error surfacing.
-- Track A (upstream lib-split PR) / Track B (fork CI building the wasm target).
+- [x] **Track B (fork CI guard) — DONE.** `.github/workflows/wasm_guard.yml` runs on
+      push/PR: builds `papercraft-engine` with `--no-default-features` (shell-dep
+      leak guard), builds it for `wasm32-unknown-unknown` (non-wasm/C-dep guard),
+      runs engine tests, then `wasm-pack build` + the Node smoke test through the
+      bindings. Fails loudly if an upstream sync breaks the wasm target. The whole
+      sequence was dry-run locally (green). PR #1: galkatzh/papercraft-wasm#1.
+- [ ] **Track A (upstream lib-split PR)** — not started; human-gated (issue first,
+      then a minimal behavior-preserving PR to `rodrigorc/papercraft`).
+- Open PR for this work: **galkatzh/papercraft-wasm#1** (pushes to
+  `claude/busy-pasteur-pmvz93` update it).
 
 ### Follow-ups / minor deviations
 - Engine crate does not inherit the root `[lints.clippy]` table; consider
