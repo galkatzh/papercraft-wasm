@@ -1,8 +1,6 @@
 use super::*;
 
 fn compute_edge_map(new: &Papercraft, old: &Papercraft) -> FxHashMap<EdgeIndex, (EdgeIndex, bool)> {
-    use rayon::prelude::*;
-
     let model = &new.model;
     let omodel = &old.model;
     let n_edges = model.num_edges();
@@ -10,32 +8,44 @@ fn compute_edge_map(new: &Papercraft, old: &Papercraft) -> FxHashMap<EdgeIndex, 
     // Brute force algorithm, probably it could be made much smarter, but it
     // is easier to invoke the Rayon superpowers.
     // It is not a function called so frequently.
-    (0..n_edges)
-        .into_par_iter()
-        .map(EdgeIndex::from)
-        .filter_map(|i_new| {
-            let e_new = &model[i_new];
-            let (np0, np1) = model.edge_pos(e_new);
-            let distance = |e_old: &Edge| {
-                let (op0, op1) = omodel.edge_pos(e_old);
-                let da = op0.distance2(np0) + op1.distance2(np1);
-                let db = op0.distance2(np1) + op1.distance2(np0);
-                (da, db)
-            };
+    let map_one = |i_new: EdgeIndex| -> Option<(EdgeIndex, (EdgeIndex, bool))> {
+        let e_new = &model[i_new];
+        let (np0, np1) = model.edge_pos(e_new);
+        let distance = |e_old: &Edge| {
+            let (op0, op1) = omodel.edge_pos(e_old);
+            let da = op0.distance2(np0) + op1.distance2(np1);
+            let db = op0.distance2(np1) + op1.distance2(np0);
+            (da, db)
+        };
 
-            // f32 is not Eq so min_by_key cannot be used directly
-            let best = omodel.edges().min_by_key(|&(_, e_old)| {
-                let (da, db) = distance(e_old);
-                let d = da.min(db);
-                TotalF32(d)
-            });
-
-            let (i_old, e_old) = best?;
+        // f32 is not Eq so min_by_key cannot be used directly
+        let best = omodel.edges().min_by_key(|&(_, e_old)| {
             let (da, db) = distance(e_old);
-            let crossed = da > db;
-            Some((i_new, (i_old, crossed)))
-        })
-        .collect()
+            let d = da.min(db);
+            TotalF32(d)
+        });
+
+        let (i_old, e_old) = best?;
+        let (da, db) = distance(e_old);
+        let crossed = da > db;
+        Some((i_new, (i_old, crossed)))
+    };
+
+    // Parallel with Rayon when the `parallel` feature is on (desktop), otherwise
+    // a plain sequential iterator (e.g. wasm single-threaded).
+    #[cfg(feature = "parallel")]
+    {
+        use rayon::prelude::*;
+        (0..n_edges)
+            .into_par_iter()
+            .map(EdgeIndex::from)
+            .filter_map(map_one)
+            .collect()
+    }
+    #[cfg(not(feature = "parallel"))]
+    {
+        (0..n_edges).map(EdgeIndex::from).filter_map(map_one).collect()
+    }
 }
 
 type IslandFaceMap = FxHashMap<IslandKey, FxHashSet<FaceIndex>>;

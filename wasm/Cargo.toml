@@ -1,0 +1,22 @@
+[package]
+name = "papercraft-wasm"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "WebAssembly bindings for the papercraft unwrapping engine"
+repository = "https://github.com/galkatzh/papercraft-wasm"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# wasm-opt (binaryen) is fetched from GitHub releases at build time; disable it so
+# the build works in restricted networks. Re-enable for size-optimized deploys.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[dependencies]
+# Default features only: no `opengl`, no `parallel`, so this stays wasm-clean.
+papercraft-engine = { path = "../engine" }
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+console_error_panic_hook = "0.1"

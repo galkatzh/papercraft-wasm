@@ -3,10 +3,7 @@ use std::ops::ControlFlow;
 use std::{cell::RefCell, rc::Rc};
 
 use crate::util_3d;
-use crate::util_gl::MLine3DStatus;
 use cgmath::{Deg, Rad, prelude::*};
-use easy_imgui_window::easy_imgui::Color;
-use easy_imgui_window::easy_imgui_renderer::easy_imgui_opengl::Rgba;
 use fxhash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use slotmap::{SlotMap, new_key_type};
@@ -218,13 +215,6 @@ pub struct LineConfig {
 }
 
 impl LineConfig {
-    pub fn to_3dstatus(&self, def: &MLine3DStatus) -> MLine3DStatus {
-        MLine3DStatus {
-            thick: self.thick / 2.0,
-            color: self.rgba(),
-            ..*def
-        }
-    }
     pub fn rgba(&self) -> Rgba {
         Rgba::new(self.color.r, self.color.g, self.color.b, self.color.a)
     }
@@ -1403,6 +1393,30 @@ impl Papercraft {
             }
         }
         join_res
+    }
+
+    /// Produce an initial net from a freshly imported (mostly-cut) model by
+    /// greedily auto-joining edges across all islands until no further overlap-free
+    /// join is possible. Each successful join merges two islands, so the island
+    /// count decreases monotonically and the loop terminates.
+    ///
+    /// Intended for raw geometry imports (STL/OBJ/glTF). A loaded `.craft` already
+    /// carries its own unfolding, so calling this on one would keep joining and
+    /// collapse the saved layout.
+    pub fn unwrap(&mut self) {
+        loop {
+            let before = self.num_islands();
+            let keys: Vec<IslandKey> = self.islands().map(|(k, _)| k).collect();
+            for k in keys {
+                // The island may have been merged away earlier in this pass.
+                if self.island_by_key(k).is_some() {
+                    self.auto_join_edges(k);
+                }
+            }
+            if self.num_islands() == before {
+                break;
+            }
+        }
     }
 
     pub fn auto_join_edges(&mut self, mut i_island: IslandKey) -> Vec<JoinResult> {

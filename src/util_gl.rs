@@ -135,6 +135,25 @@ pub const MSTATUS_HI: MStatus = MStatus {
     top: 1,
 };
 
+// Convert an engine-side color into the GL `Rgba` uniform/attribute type.
+pub fn rgba_from_paper(c: crate::paper::Rgba) -> Rgba {
+    Rgba::new(c.r, c.g, c.b, c.a)
+}
+
+// Build a GL 3D-line render status from an engine `LineConfig` and a base status.
+// (This lived in the engine as `LineConfig::to_3dstatus`; it is GL-specific, so
+// it belongs in the shell.)
+pub fn line_config_to_3dstatus(
+    line: &crate::paper::LineConfig,
+    def: &MLine3DStatus,
+) -> MLine3DStatus {
+    MLine3DStatus {
+        thick: line.thick / 2.0,
+        color: rgba_from_paper(line.rgba()),
+        ..*def
+    }
+}
+
 pub fn program_from_source(gl: &glr::GlContext, shaders: &str) -> Result<glr::Program> {
     let split = shaders
         .find("###")

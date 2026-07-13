@@ -35,17 +35,18 @@ static MULTISAMPLES: &[i32] = &[16, 8, 4, 2];
 use easy_imgui_filechooser::{self as filechooser, CustomAtlas};
 
 mod config;
-mod paper;
-mod pdf_metrics;
 mod printable;
 mod semaphore;
-mod util_3d;
 mod util_gl;
+
+// The unwrapping engine now lives in the `papercraft-engine` crate. Re-export its
+// modules under their historical crate paths so the rest of the shell keeps using
+// `crate::paper`, `crate::util_3d`, `crate::pdf_metrics` and `crate::version`.
+pub use papercraft_engine::{paper, pdf_metrics, util_3d, version};
 
 mod ui;
 use ui::*;
 
-mod version;
 use version::Version;
 
 static LOGO_IMG: LazyLock<image::RgbaImage> =
@@ -61,7 +62,7 @@ use paper::{
     formats::{export_model_file, import_model_file},
 };
 use util_3d::Matrix3;
-use util_gl::{UniformQuad, Uniforms2D, Uniforms3D};
+use util_gl::{UniformQuad, Uniforms2D, Uniforms3D, rgba_from_paper};
 
 use clap::Parser;
 
@@ -3034,12 +3035,13 @@ impl GlobalContext {
             if self.data.ui.highlight_overlaps {
                 // Draw the overlapped highlight if "1 < STENCIL"
                 let uq = UniformQuad {
-                    color: self
-                        .data
-                        .papercraft()
-                        .options()
-                        .paper_highlight_color
-                        .to_rgba(),
+                    color: rgba_from_paper(
+                        self.data
+                            .papercraft()
+                            .options()
+                            .paper_highlight_color
+                            .to_rgba(),
+                    ),
                 };
                 self.gl.stencil_func(glow::LESS, 1, 0xff);
                 gl_fixs
@@ -3056,12 +3058,13 @@ impl GlobalContext {
                     .draw(&uq, glr::NilVertexAttrib(3), glow::TRIANGLES);
             } else {
                 // If highlight is disabled draw the overlaps anyway, but dimmer, or else it would be invisible
-                let mut color = self
-                    .data
-                    .papercraft()
-                    .options()
-                    .paper_highlight_color
-                    .to_rgba();
+                let mut color = rgba_from_paper(
+                    self.data
+                        .papercraft()
+                        .options()
+                        .paper_highlight_color
+                        .to_rgba(),
+                );
                 color.a /= 2.0;
                 let uq = UniformQuad { color };
                 self.gl.stencil_func(glow::LESS, 1, 0xff);
@@ -3579,7 +3582,7 @@ fn same_line_align(ui: &Ui, start: f32, x: f32) {
 
 fn build_color(
     ui: &Ui,
-    color: &mut Color,
+    color: &mut paper::Color,
     label: &str,
     label_len: f32,
     id: &str,
@@ -3589,9 +3592,15 @@ fn build_color(
     ui.align_text_to_frame_padding();
     ui.text(label);
     same_line_align(ui, x0, label_len);
-    ui.color_edit_4_config(lbl_id("", id), color)
+    // The engine owns a plain color type; bridge to imgui's `Color` here.
+    let mut c = Color::new(color.r, color.g, color.b, color.a);
+    ui.color_edit_4_config(lbl_id("", id), &mut c)
         .flags(ColorEditFlags::NoInputs | ColorEditFlags::NoLabel | extra_flags)
         .build();
+    color.r = c.r;
+    color.g = c.g;
+    color.b = c.b;
+    color.a = c.a;
 }
 
 fn build_length(

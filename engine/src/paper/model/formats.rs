@@ -102,6 +102,64 @@ pub trait Importer {
 }
 
 // Returns (model, is_native_format)
+/// Import a model from an in-memory buffer (for environments without a filesystem,
+/// e.g. wasm). `format` is the lowercase extension without the dot: `stl`, `obj`,
+/// `pdo`, `glb`/`gltf`, or `craft`. Unknown formats are tried as Wavefront OBJ.
+/// Returns a ready (unwrapped) [`Papercraft`].
+///
+/// Note: external resources referenced by relative path (OBJ `.mtl`, separate
+/// glTF `.bin`/textures) cannot be resolved from a buffer; geometry still imports.
+pub fn import_model_bytes(bytes: &[u8], format: &str) -> Result<Papercraft> {
+    // Corrupt/odd meshes can panic deep in indexing; contain it so the caller
+    // gets a clean error instead of taking down the whole module.
+    match catch_unwind(|| import_model_bytes_priv(bytes, format)) {
+        Ok(res) => res,
+        Err(err) => {
+            let msg = err
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| err.downcast_ref::<String>().cloned());
+            match msg {
+                Some(msg) => bail!("Panic importing the model: {msg}"),
+                None => bail!("Panic importing the model"),
+            }
+        }
+    }
+}
+
+fn import_model_bytes_priv(bytes: &[u8], format: &str) -> Result<Papercraft> {
+    let cursor = std::io::Cursor::new(bytes);
+    let fmt = format.trim().trim_start_matches('.').to_ascii_lowercase();
+    let papercraft = match fmt.as_str() {
+        "craft" => Papercraft::load(cursor)
+            .with_context(|| "Error reading Papercraft .craft buffer".to_string())?,
+        "pdo" => {
+            let importer = pepakura::PepakuraImporter::new(cursor)
+                .with_context(|| "Error reading Pepakura buffer".to_string())?;
+            Papercraft::import(importer)
+        }
+        "stl" => {
+            let importer = stl::StlImporter::new(cursor)
+                .with_context(|| "Error reading STL buffer".to_string())?;
+            Papercraft::import(importer)
+        }
+        "glb" | "gltf" => {
+            let importer = gltf::GltfImporter::new(cursor, Path::new("model.gltf"))
+                .with_context(|| "Error reading glTF buffer".to_string())?;
+            Papercraft::import(importer)
+        }
+        _ => {
+            let importer = waveobj::WaveObjImporter::new(cursor, Path::new("model.obj"))
+                .with_context(|| "Error reading Wavefront OBJ buffer".to_string())?;
+            Papercraft::import(importer)
+        }
+    };
+    if papercraft.model().num_faces() == 0 {
+        bail!("The model has no faces");
+    }
+    Ok(papercraft)
+}
+
 pub fn import_model_file(file_name: &Path) -> Result<(Papercraft, bool)> {
     // Models have a lot of indices and unwraps, a corrupted file could easily panic
     match catch_unwind(|| import_model_file_priv(file_name)) {

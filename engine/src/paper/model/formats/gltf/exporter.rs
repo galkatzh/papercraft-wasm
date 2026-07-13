@@ -1,5 +1,5 @@
 use anyhow::Result;
-use easy_imgui_window::easy_imgui_renderer::glow;
+use super::gl_const as glow;
 use serde_json::json;
 use std::{
     borrow::Cow,

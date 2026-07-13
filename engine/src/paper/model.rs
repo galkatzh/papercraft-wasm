@@ -141,9 +141,10 @@ macro_rules! index_type {
             }
         }
 
-        unsafe impl crate::glr::AttribField for $name {
+        #[cfg(feature = "opengl")]
+        unsafe impl easy_imgui_opengl::AttribField for $name {
             fn detail() -> (usize, u32) {
-                <$inner>::detail()
+                <$inner as easy_imgui_opengl::AttribField>::detail()
             }
         }
     }

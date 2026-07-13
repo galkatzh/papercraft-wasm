@@ -1,0 +1,60 @@
+# Track B (fork) guard: the upstream desktop CI does not build the WASM target, so
+# a future upstream sync could add a dependency that breaks `wasm32-unknown-unknown`.
+# This workflow fails loudly the moment that happens: it builds the engine with no
+# default features (no GUI/CLI/OS deps), builds it for wasm32, then runs wasm-pack
+# and a functional smoke test through the bindings.
+name: WasmGuard
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: wasm-guard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wasm-guard:
+    name: Engine + WASM build guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust (stable + wasm32)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      # If a shell dependency leaks into the engine, this fails.
+      - name: Engine builds without GUI/CLI/OS deps
+        run: cargo build -p papercraft-engine --no-default-features
+
+      # If a non-wasm (e.g. C/-sys) dependency is introduced, this fails.
+      - name: Engine builds for wasm32 (pure Rust)
+        run: cargo build -p papercraft-engine --no-default-features --target wasm32-unknown-unknown
+
+      - name: Engine tests
+        run: cargo test -p papercraft-engine
+
+      - name: Install wasm-pack
+        run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+      # Exercises the full wasm-bindgen path (compile to wasm + JS bindings).
+      - name: wasm-pack build
+        run: wasm-pack build wasm --target nodejs --out-dir ../pkg-node --dev
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Imports a model, unwraps, queries geometry and exports PDF/SVG/.craft.
+      - name: WASM smoke test
+        run: node wasm/tests/smoke.mjs pkg-node examples/die.craft craft

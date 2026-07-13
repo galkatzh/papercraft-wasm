@@ -1,0 +1,47 @@
+[package]
+name = "papercraft-engine"
+version = "2.12.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/rodrigorc/papercraft"
+description = "Papercraft unwrapping engine: platform-neutral core (mesh, unfold, importers, .craft)"
+
+[features]
+default = []
+# Enables Rayon-based parallelism (e.g. the brute-force edge remap on model update).
+# Off by default so the engine builds for wasm32 single-threaded.
+parallel = ["dep:rayon"]
+# Implements `easy_imgui_opengl::AttribField` for the index types so the desktop
+# shell can use them directly as GL vertex attributes. Off by default to keep the
+# engine free of the GL stack on wasm.
+opengl = ["dep:easy-imgui-opengl"]
+
+[build-dependencies]
+anyhow = "1"
+
+[dependencies]
+cgmath = { version = "0.18", features = ["mint"] }
+anyhow = "1"
+tr = { version = "0.1.10", default-features = false }
+base64 = "0.22"
+slotmap = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Deflate-only (pure Rust): `.craft` is written with the default Deflated method.
+# Dropping zip's default codecs avoids the C `zstd-sys`/bzip2 and the `time`
+# local-offset path, keeping the wasm build pure-Rust and smaller. The desktop
+# build still gets the full feature set via the binary's own `zip` dependency
+# (Cargo feature unification).
+zip = { version = "8.1.0", default-features = false, features = ["deflate"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+log = "0.4"
+flate2 = "1"
+fxhash = "0.2"
+maybe-owned = { version = "0.3", features = ["serde"] }
+# For vector PDF export. default features pull chrono/jiff/rayon/time (date stamps
+# + threads); we don't need them. `wasm_js` selects getrandom's wasm backend so the
+# crate builds for wasm32-unknown-unknown. The desktop build unifies with the
+# binary's own full-featured lopdf dependency.
+lopdf = { version = "0.41", default-features = false, features = ["wasm_js"] }
+rayon = { version = "1", optional = true }
+easy-imgui-opengl = { version = "0.2", optional = true }
