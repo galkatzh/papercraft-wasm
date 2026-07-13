@@ -162,6 +162,29 @@ export class PaperDoc {
         }
     }
     /**
+     * Simplify the mesh to about `target_faces` triangles (quadric edge
+     * collapse). Rebuilds the document from the simplified geometry, so the
+     * current unfolding is reset — call `unwrap()` afterwards. Textures, UVs
+     * and materials are dropped. Returns the new face count.
+     * @param {number} target_faces
+     * @returns {number}
+     */
+    simplify(target_faces) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.paperdoc_simplify(retptr, this.__wbg_ptr, target_faces);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return r0 >>> 0;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * Split (cut) the joined edge `edge`. Returns `true` if anything changed.
      * @param {number} edge
      * @returns {boolean}

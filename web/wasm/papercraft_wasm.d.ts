@@ -46,6 +46,13 @@ export class PaperDoc {
      */
     save_craft(): Uint8Array;
     /**
+     * Simplify the mesh to about `target_faces` triangles (quadric edge
+     * collapse). Rebuilds the document from the simplified geometry, so the
+     * current unfolding is reset — call `unwrap()` afterwards. Textures, UVs
+     * and materials are dropped. Returns the new face count.
+     */
+    simplify(target_faces: number): number;
+    /**
      * Split (cut) the joined edge `edge`. Returns `true` if anything changed.
      */
     split_edge(edge: number): boolean;
@@ -81,6 +88,7 @@ export interface InitOutput {
     readonly paperdoc_pack_islands: (a: number) => number;
     readonly paperdoc_pieces2d: (a: number, b: number) => void;
     readonly paperdoc_save_craft: (a: number, b: number) => void;
+    readonly paperdoc_simplify: (a: number, b: number, c: number) => void;
     readonly paperdoc_split_edge: (a: number, b: number) => number;
     readonly paperdoc_stats: (a: number, b: number) => void;
     readonly paperdoc_unwrap: (a: number) => number;
