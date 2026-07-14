@@ -15,6 +15,11 @@ const els = {
   file: document.getElementById('file'),
   unwrap: document.getElementById('unwrap'),
   repack: document.getElementById('repack'),
+  simplify: document.getElementById('simplify'),
+  simpDialog: document.getElementById('simplify-dialog'),
+  simpCurrent: document.getElementById('simp-current'),
+  simpTarget: document.getElementById('simp-target'),
+  simpSlider: document.getElementById('simp-slider'),
   pdf: document.getElementById('pdf'),
   svg: document.getElementById('svg'),
   craft: document.getElementById('craft'),
@@ -303,10 +308,11 @@ function refresh(refit) {
   let msg = `${modelName} · ${s.faces.toLocaleString()} faces · ${s.pieces} piece(s)`;
   const warns = [];
   if (s.boundary_edges > 0) warns.push(`open mesh (${s.boundary_edges} boundary edge${s.boundary_edges > 1 ? 's' : ''})`);
-  if (s.faces > LARGE_FACES) warns.push('large mesh — consider decimating before unfolding');
+  if (s.faces > LARGE_FACES) warns.push('large mesh — use Simplify… to decimate');
   setStatus(warns.length ? `${msg}  ⚠ ${warns.join(' · ')}` : msg);
   for (const b of [els.unwrap, els.repack, els.pdf, els.svg, els.craft, els.modeSplit, els.modeJoin])
     b.disabled = false;
+  els.simplify.disabled = s.faces < 8;   // nothing sensible to simplify below that
 }
 
 function setStatus(s) { els.status.textContent = s; }
@@ -340,6 +346,59 @@ async function loadFile(file) {
     console.error(e);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Mesh simplification
+// ---------------------------------------------------------------------------
+function openSimplifyDialog() {
+  const faces = doc.stats().faces;
+  els.simpCurrent.textContent = faces.toLocaleString();
+  els.simpTarget.max = faces - 1;
+  // Default to half the faces, or the "large mesh" threshold if way over it.
+  const def = Math.max(4, Math.min(Math.round(faces / 2), LARGE_FACES));
+  els.simpTarget.value = def;
+  els.simpSlider.value = Math.max(1, Math.min(99, Math.round((def / faces) * 100)));
+  els.simpDialog.showModal();
+}
+
+els.simpSlider.addEventListener('input', () => {
+  const faces = doc.stats().faces;
+  els.simpTarget.value = Math.max(4, Math.round((faces * els.simpSlider.value) / 100));
+});
+els.simpTarget.addEventListener('input', () => {
+  const faces = doc.stats().faces;
+  const t = Number(els.simpTarget.value) || 0;
+  els.simpSlider.value = Math.max(1, Math.min(99, Math.round((t / faces) * 100)));
+});
+
+async function runSimplify(target) {
+  const before = doc.stats().faces;
+  setStatus(`Simplifying ${before.toLocaleString()} → ~${target.toLocaleString()} faces…`);
+  await new Promise((r) => setTimeout(r, 16));   // let the status paint
+  try {
+    const after = doc.simplify(target);
+    doc.unwrap();
+    refresh(true);
+    setStatus(`${els.status.textContent}  ·  simplified ${before.toLocaleString()} → ${after.toLocaleString()} faces`);
+  } catch (e) {
+    // The document is left untouched on failure.
+    refresh(false);
+    setStatus(`Could not simplify: ${e.message || e}`);
+    console.error(e);
+  }
+}
+
+els.simplify.addEventListener('click', () => { if (doc) openSimplifyDialog(); });
+els.simpDialog.addEventListener('close', () => {
+  if (els.simpDialog.returnValue !== 'ok' || !doc) return;
+  const faces = doc.stats().faces;
+  const target = Math.round(Number(els.simpTarget.value));
+  if (!Number.isFinite(target) || target < 4 || target >= faces) {
+    setStatus(`Simplify: target must be between 4 and ${faces - 1} faces.`);
+    return;
+  }
+  runSimplify(target);
+});
 
 // ---------------------------------------------------------------------------
 // Wire up UI

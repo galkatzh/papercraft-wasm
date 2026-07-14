@@ -60,7 +60,64 @@ const craft = doc.save_craft();
 const isZip = craft[0] === 0x50 && craft[1] === 0x4b; // "PK"
 console.log(`save_craft       : ${craft.length} bytes, zip=${isZip}`);
 
-if (net.pieces.length === 0 || !pdfOk || !svgOk || !isZip) {
+// --- Mesh simplification, on a synthetic dense sphere (model-independent) ---
+// Binary STL of an octahedron subdivided `n` times, projected on the unit sphere.
+function sphereStl(subdiv) {
+  let pos = [
+    [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+  ];
+  let tris = [
+    [0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4],
+    [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5],
+  ];
+  for (let s = 0; s < subdiv; s++) {
+    const mid = new Map();
+    const midpoint = (a, b) => {
+      const k = a < b ? `${a},${b}` : `${b},${a}`;
+      if (!mid.has(k)) {
+        const m = pos[a].map((v, i) => v + pos[b][i]);
+        const len = Math.hypot(...m);
+        pos.push(m.map((v) => v / len));
+        mid.set(k, pos.length - 1);
+      }
+      return mid.get(k);
+    };
+    tris = tris.flatMap(([a, b, c]) => {
+      const [ab, bc, ca] = [midpoint(a, b), midpoint(b, c), midpoint(c, a)];
+      return [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]];
+    });
+  }
+  const buf = new DataView(new ArrayBuffer(84 + 50 * tris.length));
+  buf.setUint32(80, tris.length, true);
+  tris.forEach((t, i) => {
+    let o = 84 + 50 * i + 12; // skip the (zero) normal
+    for (const v of t) {
+      for (const x of pos[v]) { buf.setFloat32(o, x, true); o += 4; }
+    }
+  });
+  return new Uint8Array(buf.buffer);
+}
+
+const sdoc = new pc.PaperDoc(sphereStl(4), 'stl');
+sdoc.unwrap();
+const before = sdoc.stats().faces;
+const after = sdoc.simplify(300);
+sdoc.unwrap();
+const snet = sdoc.pieces2d();
+console.log(
+  `simplify         : ${before} -> ${after} faces, pieces=${snet.pieces.length}`,
+);
+const simplifyOk =
+  before === 2048 && after <= 300 && after > 50 && snet.pieces.length > 0;
+let simplifyRejects = false;
+try {
+  sdoc.simplify(1e9); // target above current must be rejected
+} catch {
+  simplifyRejects = true;
+}
+console.log(`simplify guards  : rejects-bad-target=${simplifyRejects}`);
+
+if (net.pieces.length === 0 || !pdfOk || !svgOk || !isZip || !simplifyOk || !simplifyRejects) {
   console.error('SMOKE TEST FAILED');
   process.exit(1);
 }

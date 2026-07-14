@@ -40,6 +40,17 @@
   #c2d { display:block; width:100%; height:100%; background:#15161a; }
   .hint { position:absolute; bottom:8px; left:10px; font-size:11px; color:var(--muted);
     z-index:2; pointer-events:none; }
+  dialog { background:var(--panel); color:var(--ink); border:1px solid #4a4e5a;
+    border-radius:10px; padding:16px 18px; min-width:320px; }
+  dialog::backdrop { background:rgba(0,0,0,.55); }
+  dialog h3 { margin:0 0 10px; font-size:14px; }
+  dialog .row { display:flex; gap:8px; align-items:center; margin:8px 0; }
+  dialog .row label { flex:1; }
+  dialog input[type=number] { width:110px; background:#3a3d47; color:var(--ink);
+    border:1px solid #4a4e5a; border-radius:6px; padding:5px 8px; font-size:13px; }
+  dialog input[type=range] { width:100%; accent-color:var(--accent); }
+  dialog .note { color:var(--muted); font-size:11.5px; margin:10px 0 0; max-width:340px; }
+  dialog menu { display:flex; gap:8px; justify-content:flex-end; margin:14px 0 0; padding:0; }
 </style>
 </head>
 <body>
@@ -51,6 +62,7 @@
     </label>
     <button id="unwrap" disabled>Unwrap</button>
     <button id="repack" disabled>Repack</button>
+    <button id="simplify" disabled>Simplify…</button>
     <div class="sep"></div>
     <button id="mode-split" class="mode active" disabled>Split edge</button>
     <button id="mode-join" class="mode" disabled>Join edge</button>
@@ -74,6 +86,24 @@
     </section>
   </main>
 </div>
+<dialog id="simplify-dialog">
+  <form method="dialog">
+    <h3>Simplify mesh</h3>
+    <div class="row">
+      <label for="simp-target">Target faces (<span id="simp-current"></span> now)</label>
+      <input id="simp-target" type="number" min="4" step="1" />
+    </div>
+    <input id="simp-slider" type="range" min="1" max="99" value="50"
+           aria-label="Target faces as a percentage of the current count" />
+    <p class="note">Collapses the least significant edges (quadric error metric) to make
+      the model easier to unfold, cut and glue. The unfolding is redone from scratch and
+      textures are dropped.</p>
+    <menu>
+      <button value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button value="ok" type="submit">Simplify</button>
+    </menu>
+  </form>
+</dialog>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

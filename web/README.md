@@ -2,10 +2,23 @@
 
 A browser papercraft unfolder: load a 3D mesh (STL / OBJ / PDO / glTF / `.craft`),
 see the 3D model and the 2D net side by side, edit edges (split / join), repack,
-and export a printable cut–fold–glue **PDF** or **SVG**.
+simplify dense meshes down to a buildable face count, and export a printable
+cut–fold–glue **PDF** or **SVG**.
 
 Built on [`rodrigorc/papercraft`](https://github.com/rodrigorc/papercraft)'s
 unwrapping engine compiled to WebAssembly (see `../engine` and `../wasm`).
+
+## Mesh simplification
+
+**Simplify…** decimates the model with quadric-error-metric edge collapse
+(Garland–Heckbert), implemented in the Rust engine
+(`engine/src/paper/model/simplify.rs`). Pick a target face count (or drag the
+percentage slider) in the dialog. Boundary edges of open meshes are pinned so
+holes don't grow, and collapses that would flip or pinch the surface are
+skipped, so the result can land slightly above an aggressive target.
+Simplification rebuilds the document from the simplified geometry: the
+unfolding is redone from scratch and textures/UVs are dropped (like importing
+an STL).
 
 ## Running — no build step
 

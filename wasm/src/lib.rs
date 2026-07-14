@@ -11,6 +11,7 @@ use papercraft_engine::paper::{
     EdgeIndex, Papercraft,
     export::{self},
     formats::import_model_bytes,
+    simplify::simplify_papercraft,
 };
 
 /// Install a panic hook that forwards Rust panics to `console.error`. Called
@@ -90,6 +91,17 @@ impl PaperDoc {
             self.pc.rebuild_island_names();
         }
         changed
+    }
+
+    /// Simplify the mesh to about `target_faces` triangles (quadric edge
+    /// collapse). Rebuilds the document from the simplified geometry, so the
+    /// current unfolding is reset — call `unwrap()` afterwards. Textures, UVs
+    /// and materials are dropped. Returns the new face count.
+    pub fn simplify(&mut self, target_faces: u32) -> Result<u32, JsError> {
+        let pc = simplify_papercraft(&self.pc, target_faces as usize).map_err(js_err)?;
+        self.pc = pc;
+        self.pc.rebuild_island_names();
+        Ok(self.pc.model().num_faces() as u32)
     }
 
     /// Re-pack the islands onto the page(s). Returns the number of pages used.
